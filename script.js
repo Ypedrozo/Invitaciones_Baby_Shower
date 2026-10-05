@@ -42,4 +42,71 @@
   } else {
     sections.forEach((section) => section.classList.add('is-visible'));
   }
+
+  // Melodía original y ligera generada en el navegador, sin descargar audio externo.
+  // El navegador puede exigir una interacción antes de permitir sonido.
+  const musicButton = document.getElementById('music-toggle');
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  let audioContext;
+  let musicTimer;
+  let noteIndex = 0;
+  let musicOn = false;
+  let musicStarting = false;
+  const melody = [659.25, 587.33, 523.25, 587.33, 783.99, 698.46, 587.33, 523.25,
+    587.33, 659.25, 523.25, 493.88, 523.25, 587.33, 440, 493.88];
+
+  function playNote(frequency) {
+    if (!audioContext || !musicOn) return;
+    const now = audioContext.currentTime;
+    const tone = audioContext.createOscillator();
+    const volume = audioContext.createGain();
+    tone.type = 'sine';
+    tone.frequency.setValueAtTime(frequency, now);
+    volume.gain.setValueAtTime(0.0001, now);
+    volume.gain.exponentialRampToValueAtTime(0.045, now + 0.08);
+    volume.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
+    tone.connect(volume);
+    volume.connect(audioContext.destination);
+    tone.start(now);
+    tone.stop(now + 1.1);
+  }
+
+  async function startMusic() {
+    if (!AudioContextClass || musicOn || musicStarting) return;
+    musicStarting = true;
+    audioContext = audioContext || new AudioContextClass();
+    try {
+      await audioContext.resume();
+      musicOn = true;
+      musicButton.setAttribute('aria-pressed', 'true');
+      musicButton.setAttribute('aria-label', 'Pausar música de fondo');
+      musicButton.querySelector('.music-label').textContent = 'Pausar música';
+      playNote(melody[noteIndex++ % melody.length]);
+      musicTimer = window.setInterval(() => {
+        playNote(melody[noteIndex++ % melody.length]);
+      }, 1250);
+    } catch (_) {
+      musicOn = false;
+    } finally {
+      musicStarting = false;
+    }
+  }
+
+  function stopMusic() {
+    musicOn = false;
+    window.clearInterval(musicTimer);
+    if (audioContext && audioContext.state === 'running') audioContext.suspend();
+    musicButton.setAttribute('aria-pressed', 'false');
+    musicButton.setAttribute('aria-label', 'Activar música de fondo');
+    musicButton.querySelector('.music-label').textContent = 'Activar música';
+  }
+
+  musicButton.addEventListener('click', () => {
+    if (musicOn) stopMusic();
+    else startMusic();
+  });
+  // Algunos navegadores permiten reproducir después del primer toque en cualquier parte.
+  document.addEventListener('pointerdown', () => startMusic(), { once: true, passive: true });
+  document.addEventListener('keydown', () => startMusic(), { once: true });
+  startMusic();
 })();
